@@ -38,13 +38,11 @@ non-nil interface, so `Eq` reports a nil `*T` as unequal to nil.
 
 See `doc.go` for why `Eq` takes `any`, and how the label is read.
 
-## This repo is a mirror
+## GitHub repo is a mirror
 
 Development happens on [cibot](https://dancroak.com/cmd/cibot/), a
-self-hosted review and CI server, which holds the branches. GitHub
-receives `main` and the tags, so `go get` works and a commit hash is
-browsable, and pull requests are closed because there is nothing here to
-merge into.
+self-hosted review and CI server, which holds in progress branches.
+GitHub receives `main` and the tags so `go get` works.
 
 ## License
 
