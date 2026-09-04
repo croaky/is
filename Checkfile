@@ -21,3 +21,22 @@ lint: out=$(goimports -local "$(go list -m)" -l .); if [ -n "$out" ]; then echo 
 # its output is the verdict: awk prints what it read, then fails if it
 # read a line.
 hints: git ls-files -z '*.go' | xargs -0 gopls check -severity=hint | awk '1; END { exit (NR > 0) }'
+
+# deadcode -test roots at the test binaries, so an exported helper that
+# no test calls is reported. That is the one rule this repo cannot get
+# from a compiler: the assertions are dead until another module fetches
+# them, so the tests are the only thing that says the surface is real.
+# Like gopls it exits 0 either way, so awk reads the verdict.
+deadcode: deadcode -test ./... 2>&1 | awk '1; END { exit (NR > 0) }'
+
+# scripts/tag pushes the tag every consumer resolves against, and it
+# runs only at a release. A quoting bug in it would be found by the
+# release it breaks, so shellcheck reads it on every push instead.
+shellcheck: git ls-files -z 'scripts/*' '*.sh' | xargs -0 shellcheck
+
+# The prose is most of this repo, so it gets a formatter too. dprint
+# wraps Markdown at 72, the same column the commits use, so a paragraph
+# does not change shape when it moves between them. check rather than
+# fmt, for the same reason goimports runs with -l: a CI job that
+# rewrote a file would have nowhere to put it.
+fmt: dprint check

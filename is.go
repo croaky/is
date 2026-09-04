@@ -62,8 +62,8 @@ func (a *A) HasErr(err error) {
 	a.fail(label(2, "HasErr", 0), "nil", "want an error")
 }
 
-// Nil fails when v is non-nil. Unlike Eq(v, nil) it sees through an
-// interface holding a typed nil.
+// Nil fails when v is non-nil. Eq(v, nil) agrees, because equal routes
+// a nil operand through isNil too. Nil says what the check is.
 func (a *A) Nil(v any) {
 	a.tb.Helper()
 	if isNil(v) {
@@ -119,7 +119,9 @@ func (a *A) report(msg string) {
 
 // equal keeps =='s pointer identity where both values are comparable and
 // falls back to reflect.DeepEqual where == is undefined, so slices and
-// maps compare by contents.
+// maps compare by contents. A nil operand takes neither path: both sides
+// go through isNil, so a typed nil boxed into any compares equal to nil
+// rather than to the non-nil interface holding it.
 func equal(got, want any) bool {
 	if got == nil || want == nil {
 		return isNil(got) && isNil(want)

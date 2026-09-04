@@ -20,9 +20,9 @@ func label(skip int, name string, arg int) string {
 	if !ok {
 		return ""
 	}
-	// -trimpath, which bin/gotest passes, leaves a module-relative
-	// path that won't open. go test runs each binary in its own
-	// package directory, so the base name resolves.
+	// -trimpath, which the Checkfile's test entry passes, leaves a
+	// module-relative path that won't open. go test runs each binary
+	// in its own package directory, so the base name resolves.
 	if !filepath.IsAbs(file) {
 		file = filepath.Base(file)
 	}

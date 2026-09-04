@@ -35,8 +35,9 @@ error message stay as they are.
 
 One package at the repo root, standard library only. Two files:
 
-- `is.go` — the seven assertions, `A`, and the two constructors. Each
-  assertion decides pass or fail and hands three strings to `fail`.
+- `is.go` — the seven assertions, `A`, and the two constructors. Six of
+  the seven hand three strings to `fail`, which formats the one line.
+  `True` reports its own, because it has no want to print.
 - `label.go` — the source lookup: caller frame to the text of an
   argument. Knows nothing about assertions beyond a helper's name.
 
@@ -55,9 +56,16 @@ there:
 ```sh
 goimports -local "$(go list -m)" -w .
 go vet ./...
-go test -trimpath -race -cover ./...
+go test -trimpath -buildvcs=false -race -cover ./...
 git ls-files -z '*.go' | xargs -0 gopls check -severity=hint
+deadcode -test ./...
+git ls-files -z 'scripts/*' '*.sh' | xargs -0 shellcheck
+dprint fmt
 ```
+
+`goimports` and `dprint` write here, where CI runs `goimports -l` and
+`dprint check`. Fix the formatting in the change, since a CI job that
+rewrote a file would have nowhere to put it.
 
 Keep `-trimpath` on the local run. It is the case this package exists to
 handle, and without it a broken lookup passes everywhere except CI.
@@ -71,11 +79,14 @@ repo whose tests it serves.
 Red/green TDD. `is_test.go` asserts on the failure text, because the text
 is the product: a test that only checked pass and fail would not have
 caught the label. Its `fake` records what would have been reported, since
-`Fatal` cannot `Goexit` inside a test of `Fatal`.
+`Fatal` cannot `Goexit` inside a test of `Fatal`. `external_test.go`
+asserts the same way from `package is_test`, which is the nearest a
+single repo gets to a caller in another module.
 
-- Every exported helper needs a test. There is no `deadcode` job here,
-  because a library's API is dead until someone imports it, so the tests
-  are what say the surface is real.
+- Every exported helper needs a test, and the `deadcode` check enforces
+  it. `deadcode -test` roots at the test binaries, so a helper no test
+  calls is reported. A library's API is dead to a compiler until another
+  module fetches it, so the tests are what say the surface is real.
 - A label test needs the failing form: assert the exact string, not that
   a failure happened. `co.Name = Acme, want Beta` is the behavior.
 - Cover the degraded paths too. A literal argument suppresses the label,
@@ -88,11 +99,6 @@ caught the label. Its `fake` records what would have been reported, since
 why `True` is the escape hatch, and how the label survives `-trimpath`.
 A change to any of those updates it in the same commit. The code says
 what.
-
-Plans live in `todo/planned` and are reviewed as ordinary changes. A
-numeric prefix means land in this order; unnumbered siblings are
-parallel and pickable anytime. Delete a plan's text as it ships rather
-than leaving a record of work already done.
 
 ## Changes
 
@@ -116,8 +122,7 @@ exits nonzero when a check failed, and gives up after ten minutes
 
 ## Commits
 
-- Prefix with what the change acts on: `is:`, `label:`, `doc:`, `todo:`,
-  `ci:`.
+- Prefix with what the change acts on: `is:`, `label:`, `doc:`, `ci:`.
 - Imperative mood, lowercase except proper nouns. Hard-wrap at 72.
 - Include _why_, not just _what_. See `git log` for examples.
 - Sign your work with a `Co-Authored-By` trailer.

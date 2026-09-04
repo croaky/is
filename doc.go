@@ -20,8 +20,10 @@
 //   - Eq, NotEq for comparing two values. This is the default; prefer it
 //     over True.
 //   - NoErr, HasErr for errors.
-//   - Nil, NotNil for nil checks. Eq(x, nil) is wrong for a typed nil,
-//     which boxes into a non-nil interface and compares unequal to nil.
+//   - Nil, NotNil for nil checks. Eq(x, nil) agrees, because equal
+//     routes a nil operand through isNil too, but the pair names the
+//     check: NotNil prints "want non-nil" where NotEq(x, nil) prints
+//     "want anything else".
 //   - True only for a predicate with no want to name.
 //
 // True takes an arbitrary bool because something has to:
@@ -40,7 +42,9 @@
 //
 // Comparison uses reflect.Value.Equal where both values are comparable,
 // which keeps =='s pointer identity, and reflect.DeepEqual where == is
-// undefined, so slices and maps compare by contents.
+// undefined, so slices and maps compare by contents. A nil operand
+// takes neither: both sides go through the same nil test the Nil helper
+// uses, so an interface holding a typed nil compares equal to nil.
 //
 // # Reading the label
 //

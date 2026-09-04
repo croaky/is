@@ -33,8 +33,10 @@ the documentation:
 `New(t)` fails fatally on the first failure. `NewRelaxed(t)` records and
 keeps going, for a test that reports every mismatch in a loop.
 
-Use `Nil` rather than `Eq(x, nil)`: a typed nil boxed into `any` is a
-non-nil interface, so `Eq` reports a nil `*T` as unequal to nil.
+Use `Nil` and `NotNil` for a nil check. `Eq` sees through a typed nil
+too, so `Eq(x, nil)` passes, but the name and the failure say less:
+`NotEq(x, nil)` prints `want anything else` where `NotNil` prints
+`want non-nil`.
 
 See `doc.go` for why `Eq` takes `any`, and how the label is read.
 
