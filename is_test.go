@@ -130,6 +130,42 @@ func TestHasErr(t *testing.T) {
 	}
 }
 
+// Eq(x, nil) agrees with Nil(x). The any parameter boxes a nil *T into
+// a non-nil interface, but that boxing is Eq's doing, not the caller's:
+// in the caller's code p == nil holds, so Eq says the same. NoErr takes
+// error and stays strict, which is where a typed nil is a real bug.
+func TestEqSeesThroughATypedNil(t *testing.T) {
+	t.Parallel()
+	f := &fake{}
+	is := NewRelaxed(f)
+	var p *int
+	var s []int
+	var m map[string]int
+	var e *typedErr
+	var err error = e
+	is.Eq(p, nil)
+	is.Eq(s, nil)
+	is.Eq(m, nil)
+	is.Eq(err, nil)
+	is.Eq(nil, p)
+	if len(f.msgs) != 0 {
+		t.Fatalf("failures = %v, want none", f.msgs)
+	}
+
+	v := 3
+	is.Eq(&v, nil)
+	is.Eq([]int{}, nil)
+	is.NotEq(p, nil)
+	is.NoErr(err)
+	if len(f.msgs) != 4 {
+		t.Fatalf("failures = %v, want 4", f.msgs)
+	}
+}
+
+type typedErr struct{}
+
+func (*typedErr) Error() string { return "typed" }
+
 func TestNilSeesThroughATypedNil(t *testing.T) {
 	t.Parallel()
 	f := &fake{}
