@@ -3,6 +3,7 @@ package is
 import (
 	"fmt"
 	"reflect"
+	"sync"
 	"testing"
 )
 
@@ -122,15 +123,58 @@ func (a *A) report(msg string) {
 // maps compare by contents. A nil operand takes neither path: both sides
 // go through isNil, so a typed nil boxed into any compares equal to nil
 // rather than to the non-nil interface holding it.
+//
+// Two values of different types are unequal on both paths, so equal
+// reports false before it reads either value. A plain type gives the
+// same verdict through == as through reflect.Value.Equal, and == does
+// not allocate.
 func equal(got, want any) bool {
 	if got == nil || want == nil {
 		return isNil(got) && isNil(want)
+	}
+	t := reflect.TypeOf(got)
+	if t != reflect.TypeOf(want) {
+		return false
+	}
+	if plain(t) {
+		return got == want
 	}
 	gv, wv := reflect.ValueOf(got), reflect.ValueOf(want)
 	if gv.Comparable() && wv.Comparable() {
 		return gv.Equal(wv)
 	}
 	return reflect.DeepEqual(got, want)
+}
+
+var plainTypes sync.Map // reflect.Type -> bool
+
+// plain reports true for a comparable type that holds no interface. For
+// such a type reflect.Value.Comparable is always true, and == cannot
+// panic. An interface field can hold a slice, which makes the value
+// incomparable, so a type with one takes the reflect path. A struct
+// with a blank field also takes it, because == skips a blank field and
+// reflect.Value.Equal compares it.
+func plain(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Interface:
+		return false
+	case reflect.Array, reflect.Struct:
+	default:
+		return t.Comparable()
+	}
+	if v, ok := plainTypes.Load(t); ok {
+		return v.(bool)
+	}
+	ok := t.Comparable()
+	if ok && t.Kind() == reflect.Array {
+		ok = plain(t.Elem())
+	}
+	for i := 0; ok && t.Kind() == reflect.Struct && i < t.NumField(); i++ {
+		f := t.Field(i)
+		ok = f.Name != "_" && plain(f.Type)
+	}
+	plainTypes.Store(t, ok)
+	return ok
 }
 
 // isNil reports true for each value that the caller's own v == nil

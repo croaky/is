@@ -92,6 +92,27 @@ func TestEqComparesSlicesByContents(t *testing.T) {
 	}
 }
 
+// An interface field that holds a slice makes == panic, so Eq compares
+// the struct by contents.
+func TestEqComparesAStructWithASliceInAnInterfaceField(t *testing.T) {
+	t.Parallel()
+	f := &fake{}
+	type box struct {
+		N int
+		V any
+	}
+	is := NewRelaxed(f)
+	is.Eq(box{1, []int{1, 2}}, box{1, []int{1, 2}})
+	if len(f.msgs) != 0 {
+		t.Fatalf("failures = %v, want none", f.msgs)
+	}
+	is.Eq(box{1, []int{1, 2}}, box{1, []int{1, 3}})
+	is.Eq(box{1, 2}, box{1, 2})
+	if len(f.msgs) != 1 {
+		t.Fatalf("failures = %v, want 1", f.msgs)
+	}
+}
+
 func TestEqComparesPointersByIdentity(t *testing.T) {
 	t.Parallel()
 	f := &fake{}
@@ -266,6 +287,151 @@ func TestNewRelaxedKeepsGoing(t *testing.T) {
 	}
 	if len(f.msgs) != 2 {
 		t.Fatalf("failures = %v, want 2", f.msgs)
+	}
+}
+
+// discard is a testing.TB that drops each failure, so a benchmark of a
+// failing assertion measures the assertion and not the recording.
+type discard struct{ testing.TB }
+
+func (discard) Helper()      {}
+func (discard) Fatal(...any) {}
+func (discard) Error(...any) {}
+
+// account is a struct of the size a test usually compares.
+type account struct {
+	ID    int64
+	Name  string
+	Email string
+	Plan  string
+	Seats int
+}
+
+// The pass path runs once for each assertion in each suite that uses
+// this package, so it must stay cheap.
+func BenchmarkEqPass(b *testing.B) {
+	is := New(discard{})
+	co := account{ID: 7, Name: "Acme", Email: "ops@acme.test", Plan: "team", Seats: 12}
+	want := co
+	ids := []int{1, 2, 3, 4, 5, 6, 7, 8}
+	wantIDs := []int{1, 2, 3, 4, 5, 6, 7, 8}
+	b.Run("int", func(b *testing.B) {
+		b.ReportAllocs()
+		n := 3
+		for b.Loop() {
+			is.Eq(n, 3)
+		}
+	})
+	b.Run("string", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq(co.Name, "Acme")
+		}
+	})
+	b.Run("struct", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq(co, want)
+		}
+	})
+	b.Run("slice", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq(ids, wantIDs)
+		}
+	})
+	b.Run("typed nil", func(b *testing.B) {
+		b.ReportAllocs()
+		var p *int
+		for b.Loop() {
+			is.Eq(p, nil)
+		}
+	})
+}
+
+func BenchmarkNilPass(b *testing.B) {
+	is := New(discard{})
+	v := 3
+	b.Run("untyped nil", func(b *testing.B) {
+		b.ReportAllocs()
+		var err error
+		for b.Loop() {
+			is.Nil(err)
+		}
+	})
+	b.Run("typed nil", func(b *testing.B) {
+		b.ReportAllocs()
+		var p *int
+		for b.Loop() {
+			is.Nil(p)
+		}
+	})
+	b.Run("unsafe pointer", func(b *testing.B) {
+		b.ReportAllocs()
+		var p unsafe.Pointer
+		for b.Loop() {
+			is.Nil(p)
+		}
+	})
+	b.Run("not nil", func(b *testing.B) {
+		b.ReportAllocs()
+		p := &v
+		for b.Loop() {
+			is.NotNil(p)
+		}
+	})
+}
+
+func BenchmarkNoErrPass(b *testing.B) {
+	b.ReportAllocs()
+	is := New(discard{})
+	var err error
+	for b.Loop() {
+		is.NoErr(err)
+	}
+}
+
+// The fail path reads the caller's source to find the label. The parse
+// of each file is cached, so this measures the search for the call.
+func BenchmarkEqFail(b *testing.B) {
+	is := NewRelaxed(discard{})
+	co := account{Name: "Acme"}
+	b.Run("labelled", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq(co.Name, "Beta")
+		}
+	})
+	b.Run("multiline", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq(
+				co.Name,
+				"Beta",
+			)
+		}
+	})
+	b.Run("literal", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			is.Eq("Acme", "Beta")
+		}
+	})
+	b.Run("same print", func(b *testing.B) {
+		b.ReportAllocs()
+		var n int64 = 3
+		for b.Loop() {
+			is.Eq(3, n)
+		}
+	})
+}
+
+func BenchmarkTrueFail(b *testing.B) {
+	b.ReportAllocs()
+	is := NewRelaxed(discard{})
+	n := 2
+	for b.Loop() {
+		is.True(n > 5)
 	}
 }
 

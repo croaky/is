@@ -52,16 +52,26 @@ func label(skip int, name string, arg int) string {
 // which is what a trimmed path can resolve to. Matching a node whose
 // range covers the line, rather than the line's own text, keeps the
 // label for a call spread over several lines.
+//
+// A node's children lie inside its range, so the search skips each
+// node whose range does not cover line, with all its children. A
+// failure then costs a walk down one path of the tree, not a walk of
+// the whole file.
 func callAt(f *ast.File, fset *token.FileSet, line int, name string) *ast.CallExpr {
+	tf := fset.File(f.Pos())
+	if tf == nil {
+		return nil
+	}
 	var best *ast.CallExpr
 	ast.Inspect(f, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
+		if n == nil || !n.Pos().IsValid() || !n.End().IsValid() {
 			return true
 		}
-		start := fset.Position(call.Pos()).Line
-		end := fset.Position(call.End()).Line
-		if line < start || line > end {
+		if line < tf.Line(n.Pos()) || line > tf.Line(n.End()) {
+			return false
+		}
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
 			return true
 		}
 		if callName(call.Fun) != name {
