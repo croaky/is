@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"unsafe"
 )
 
 // fake records what an assertion would have reported. Fatal can't
@@ -177,6 +178,53 @@ func TestNilSeesThroughATypedNil(t *testing.T) {
 	New(f).NotNil(p)
 	if got, want := f.one(t), "p = nil, want non-nil"; got != want {
 		t.Fatalf("message = %q, want %q", got, want)
+	}
+}
+
+// handle is a named type with an unsafe.Pointer underlying type, as cgo
+// and syscall code declare.
+type handle unsafe.Pointer
+
+func TestNilSeesANilUnsafePointer(t *testing.T) {
+	t.Parallel()
+	f := &fake{}
+	var p unsafe.Pointer
+	New(f).NotNil(p)
+	if got, want := f.one(t), "p = nil, want non-nil"; got != want {
+		t.Fatalf("message = %q, want %q", got, want)
+	}
+}
+
+// Each kind that can be nil gives the same verdict in the Nil pair and
+// in the Eq pair against nil.
+func TestNilAgreesWithEqForEachNilableKind(t *testing.T) {
+	t.Parallel()
+	v := 3
+	for name, c := range map[string]struct{ nilV, nonNil any }{
+		"chan":           {(chan int)(nil), make(chan int)},
+		"func":           {(func())(nil), func() {}},
+		"map":            {map[string]int(nil), map[string]int{}},
+		"pointer":        {(*int)(nil), &v},
+		"slice":          {[]int(nil), []int{}},
+		"unsafe pointer": {unsafe.Pointer(nil), unsafe.Pointer(&v)},
+		"named unsafe":   {handle(nil), handle(unsafe.Pointer(&v))},
+	} {
+		f := &fake{}
+		is := NewRelaxed(f)
+		is.Nil(c.nilV)
+		is.Eq(c.nilV, nil)
+		is.NotNil(c.nonNil)
+		is.NotEq(c.nonNil, nil)
+		if len(f.msgs) != 0 {
+			t.Errorf("%s: failures = %v, want none", name, f.msgs)
+		}
+		is.NotNil(c.nilV)
+		is.NotEq(c.nilV, nil)
+		is.Nil(c.nonNil)
+		is.Eq(c.nonNil, nil)
+		if len(f.msgs) != 4 {
+			t.Errorf("%s: failures = %v, want 4", name, f.msgs)
+		}
 	}
 }
 

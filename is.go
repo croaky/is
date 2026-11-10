@@ -133,14 +133,18 @@ func equal(got, want any) bool {
 	return reflect.DeepEqual(got, want)
 }
 
+// isNil reports true for each value that the caller's own v == nil
+// reports true for. The case lists every kind that reflect.Value.IsNil
+// accepts. A missing kind falls to default, and a nil of that kind
+// passes NotNil.
 func isNil(v any) bool {
 	if v == nil {
 		return true
 	}
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface,
-		reflect.Map, reflect.Pointer, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
+		reflect.Pointer, reflect.Slice, reflect.UnsafePointer:
 		return rv.IsNil()
 	default:
 		return false
